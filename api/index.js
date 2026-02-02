@@ -16,82 +16,86 @@ const listingsRouter = require("../routes/listing.js");
 const reviewsRouter = require("../routes/review.js");
 const userRouter = require("../routes/user.js");
 
-// MongoDB URL from environment variables
+// Use environment variable for MongoDB URL (Atlas) or fallback to local
+// Supports both MONGODB_URI (common standard) and ATLASDB_URL
 const MONGO_URL = process.env.MONGODB_URI || process.env.ATLASDB_URL || "mongodb://127.0.0.1:27017/wanderlust";
 
-// Connect to MongoDB
-let isConnected = false;
-async function connectDB() {
-  if (isConnected) return;
-  
+// Log for debugging (hide password)
+const urlToLog = MONGO_URL.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+console.log("Attempting MongoDB connection to:", urlToLog);
+console.log("Environment check - MONGODB_URI exists:", !!process.env.MONGODB_URI);
+console.log("Environment check - ATLASDB_URL exists:", !!process.env.ATLASDB_URL);
+
+// MongoDB connection with proper timeout settings for serverless
+const connectDB = async () => {
   try {
-    await mongoose.connect(MONGO_URL, {
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-    });
-    console.log("✅ Connected to MongoDB");
-    isConnected = true;
-    
-    // Auto-seed if database is empty
-    const Listing = require("../models/listing.js");
-    const count = await Listing.countDocuments();
-    if (count === 0) {
-      console.log("📦 Seeding database with default listings...");
-      const initData = require("../init/data.js");
-      await Listing.insertMany(initData.data);
-      console.log(`✅ Added ${initData.data.length} listings`);
+    if (mongoose.connection.readyState === 0) {
+      console.log("Initiating MongoDB connection...");
+      await mongoose.connect(MONGO_URL, {
+        serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+        socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      });
+      console.log("✅ Successfully connected to MongoDB");
+    } else {
+      console.log("MongoDB already connected");
     }
   } catch (err) {
-    console.error("❌ MongoDB error:", err.message);
+    console.error("❌ MongoDB connection error:", err.message);
+    throw err;
   }
-}
+};
 
+// Connect to database
 connectDB();
 
-// Trust proxy for Vercel
-app.set('trust proxy', 1);
-
-// View engine
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../views"));
-
-// Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
 app.engine('ejs', ejsMate);
 app.use(express.static(path.join(__dirname, "../public")));
 
-// Session configuration with MongoDB store
 const store = MongoStore.create({
   mongoUrl: MONGO_URL,
-  touchAfter: 24 * 3600,
+  crypto: {
+    secret: process.env.SECRET || "mysupersecretcode",
+  },
+  touchAfter: 24 * 3600, // lazy session update (24 hours)
 });
 
 store.on("error", (err) => {
-  console.error("Session store error:", err);
+  console.log("SESSION STORE ERROR:", err);
 });
 
-app.use(session({
+const sessionOptions = {
   store,
   secret: process.env.SECRET || "mysupersecretcode",
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false, // Changed to false for better security
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
+    // For production (Vercel with HTTPS)
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   }
-}));
+};
 
+app.get("/", (req, res) => {
+  res.send("Hi, I am root");
+});
+
+app.use(session(sessionOptions));
 app.use(flash());
 
-// Passport configuration
 app.use(passport.initialize());
 app.use(passport.session());
 passport.use(new LocalStrategy(User.authenticate()));
+
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
-// Flash messages and current user
 app.use((req, res, next) => {
   res.locals.success = req.flash("success");
   res.locals.error = req.flash("error");
@@ -99,25 +103,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes
-app.get("/", (req, res) => {
-  res.redirect("/listings");
-});
-
 app.use("/listings", listingsRouter);
 app.use("/listings/:id/reviews", reviewsRouter);
 app.use("/", userRouter);
 
-// 404 handler
+// 404 HANDLER 
 app.use((req, res, next) => {
   next(new ExpressError(404, "Page Not Found!"));
 });
 
-// Error handler
+// GLOBAL ERROR HANDLER
 app.use((err, req, res, next) => {
-  console.error(err);
+  console.log(err);
   let { statusCode = 500, message = "Something went wrong!" } = err;
   res.status(statusCode).render("error.ejs", { message });
 });
 
+// Export for Vercel serverless
 module.exports = app;
