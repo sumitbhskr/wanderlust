@@ -22,3 +22,10 @@ build/
 # editor
 .vscode/
 .idea/
+# Vercel
+.vercel
+.vercel.json
+
+# production env files
+.env.production.local
+.env.development.local

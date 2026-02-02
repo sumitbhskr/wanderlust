@@ -6,13 +6,23 @@ const { isLoggedIn, isOwner, validateListing } = require("../middleware.js");
 
 const listingController = require("../controllers/listings.js");
 
+
+// 🟢 MULTER IMPORT
+const multer = require("multer");
+const { storage } = require("../cloudConfig.js");
+const upload = multer({ storage });
+
+console.log("ROUTE FILE LOADED"); 
+
+
 router
   .route("/")
   .get(wrapAsync(listingController.index))
   .post(
     isLoggedIn,
+    upload.single("image"),  // 🟢 MULTER MIDDLEWARE
     validateListing,
-    wrapAsync(listingController.createListing),
+    wrapAsync(listingController.createListing)
   );
 
 // New Route
@@ -24,17 +34,22 @@ router
   .put(
     isLoggedIn,
     isOwner,
+    upload.single("image"),    // 🟢 MULTER MIDDLEWARE
     validateListing,
-    wrapAsync(listingController.updateListing),
+    wrapAsync(listingController.updateListing)
   )
-  .delete(isLoggedIn, isOwner, wrapAsync(listingController.destroyListing));
+  .delete(
+    isLoggedIn,
+    isOwner,
+    wrapAsync(listingController.destroyListing)
+  );
 
 // Edit Route
 router.get(
   "/:id/edit",
   isLoggedIn,
   isOwner,
-  wrapAsync(listingController.renderEditForm),
+  wrapAsync(listingController.renderEditForm)
 );
 
 module.exports = router;
