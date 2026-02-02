@@ -3,6 +3,22 @@
 ## Summary
 This document outlines all changes made to prepare the WanderLust project for Vercel deployment with MongoDB Atlas.
 
+## Version History
+
+### Version 1.1.0 - Session Store Fix
+**Date**: February 2, 2026
+
+#### Changes:
+- Added `connect-mongo` dependency for MongoDB session storage
+- Updated session configuration to use MongoStore instead of in-memory sessions
+- Fixed login/authentication issues on Vercel serverless environment
+- Sessions now persist correctly across requests
+
+**Why**: In-memory sessions don't work on Vercel's serverless architecture. Each function invocation may use a different instance, causing session data loss. MongoDB session store ensures sessions persist in the database.
+
+### Version 1.0.0 - Initial Vercel Preparation
+**Date**: February 2, 2026
+
 ## Key Changes Made
 
 ### 1. **app.js** - Main Application File
@@ -39,6 +55,35 @@ const sessionOptions = {
 ```
 
 **Why:** Uses environment variable for session secret in production for better security, with a fallback for local development.
+
+#### Session Storage (v1.1.0)
+**Before:**
+```javascript
+const sessionOptions = {
+  secret: process.env.SESSION_SECRET || "mysupersecretcode",
+  resave: false,
+  saveUninitialized: true,
+  cookie: { /* ... */ }
+};
+```
+
+**After:**
+```javascript
+const MongoStore = require('connect-mongo');
+
+const sessionOptions = {
+  secret: process.env.SESSION_SECRET || "mysupersecretcode",
+  resave: false,
+  saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.ATLASDB_URL || "mongodb://127.0.0.1:27017/wanderlust",
+    touchAfter: 24 * 3600
+  }),
+  cookie: { /* ... */ }
+};
+```
+
+**Why:** Vercel uses serverless functions, which don't maintain state between requests. Storing sessions in MongoDB ensures login persistence across all requests and function invocations.
 
 #### Port Configuration
 **Before:**
@@ -274,8 +319,8 @@ Before deployment, ensure:
 
 ## Files Modified
 
-1. `app.js` - Database URL, session secret, and port configuration
-2. `package.json` - Added start and dev scripts
+1. `app.js` - Database URL, session secret, session store (MongoDB), and port configuration
+2. `package.json` - Added start and dev scripts, added connect-mongo dependency
 3. `.env` - Added comments and placeholders for new variables
 4. `.gitignore` - Added Vercel-specific entries
 
@@ -304,9 +349,14 @@ mongorestore --uri="mongodb+srv://user:pass@cluster.net" --db=wanderlust ./backu
 
 ## Version
 
-- **Version**: 1.0.0 (Vercel Ready)
+- **Version**: 1.1.0 (Session Store Fixed)
 - **Date**: February 2, 2026
 - **Status**: Production Ready ✅
+
+## Changes from v1.0.0 to v1.1.0
+- Fixed session persistence issues on Vercel
+- Added MongoDB session store (connect-mongo)
+- Login and authentication now work correctly on serverless environment
 
 ## Next Steps
 

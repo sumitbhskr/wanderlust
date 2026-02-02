@@ -230,27 +230,10 @@ git push origin main
 ### Issue 3: "Session not persisting"
 
 **Solution:**
-- Ensure `SESSION_SECRET` is set
-- Note: Current implementation uses in-memory sessions
-- For production with multiple instances, implement connect-mongo:
-
-```javascript
-const MongoStore = require('connect-mongo');
-
-const sessionOptions = {
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: true,
-  store: MongoStore.create({
-    mongoUrl: process.env.ATLASDB_URL
-  }),
-  cookie: {
-    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    httpOnly: true,
-  }
-};
-```
+- Ensure `SESSION_SECRET` is set in Vercel environment variables
+- The app now uses MongoDB session store (connect-mongo) which is already configured
+- Sessions are stored in MongoDB Atlas, so they persist correctly across serverless function invocations
+- If still having issues, clear browser cookies and try again
 
 ### Issue 4: "Function timeout"
 

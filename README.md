@@ -136,9 +136,7 @@ vercel env add SESSION_SECRET
 
 1. **Database Connection**: The app uses `ATLASDB_URL` environment variable for MongoDB connection on Vercel.
 
-2. **Session Storage**: Currently using in-memory session storage. For production with multiple instances, consider using a persistent session store like:
-   - connect-mongo (MongoDB session store)
-   - connect-redis (Redis session store)
+2. **Session Storage**: Uses MongoDB session store (connect-mongo) for persistent sessions across serverless functions. This ensures login sessions work correctly on Vercel.
 
 3. **File Uploads**: All user uploads are stored in Cloudinary, not on the server filesystem (which is ephemeral on Vercel).
 
